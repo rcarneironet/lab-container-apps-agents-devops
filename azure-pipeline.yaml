@@ -1,0 +1,122 @@
+name: $(BuildDefinitionName)_$(date:yyyyMMdd)$(rev:.r)
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+
+variables:
+  - group: azure-container-app
+
+stages :
+#  - stage: Build
+#    displayName: Build Azure DevOps Agent
+#    jobs:  
+#    - job: Build
+#      displayName: Build job
+#      steps:
+#      - task: Docker@2
+#        displayName: Build and Push Azure DevOps Agent to container registry
+#        inputs:
+#          command: buildAndPush
+#          repository: 'ACA-Scaling'
+#          dockerfile: '$(Build.SourcesDirectory)/azure-devops-agent-docker/Dockerfile'
+#          containerRegistry: 'acrdemoptc'
+#          tags: '$(Build.BuildId)'
+
+  - stage: create_container_environment
+    jobs:
+      - job: "deploy_app"
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Create container app environment'
+            inputs:
+              azureSubscription: 'svc_clearsale'
+              scriptType: bash
+              scriptLocation: inlineScript
+              addSpnToEnvironment: true
+              inlineScript: |
+                #!/bin/bash
+                
+                # uninstall previous versions
+                az extension remove --name containerapp
+
+                # install the latest
+                az extension add --name containerapp
+
+                az provider register --namespace Microsoft.App
+
+                RESOURCE_GROUP="rg_demos"
+                LOCATION="eastus2"
+                LOG_ANALYTICS_WORKSPACE="acrcontainersla"
+                CONTAINERAPPS_ENVIRONMENT="aca-environment"
+
+                az monitor log-analytics workspace create -g $RESOURCE_GROUP --workspace-name $LOG_ANALYTICS_WORKSPACE
+
+                az containerapp env create -n $CONTAINERAPPS_ENVIRONMENT -g $RESOURCE_GROUP \
+                --logs-workspace-id $(az monitor log-analytics workspace show --query customerId -g $RESOURCE_GROUP -n $LOG_ANALYTICS_WORKSPACE -o tsv | tr -d '[:space:]') \
+                --logs-workspace-key $(az monitor log-analytics workspace get-shared-keys --query primarySharedKey -g $RESOURCE_GROUP -n $LOG_ANALYTICS_WORKSPACE -o tsv | tr -d '[:space:]') \
+                --location $LOCATION
+
+  - stage: deploy_container_app
+    dependsOn: [create_container_environment]
+    jobs:
+      - job: "deploy_app"
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Deploy app to Container App'
+            inputs:
+              azureSubscription: 'svc_clearsale'
+              scriptType: bash
+              scriptLocation: inlineScript
+              addSpnToEnvironment: true
+              inlineScript: |
+                #!/bin/bash
+
+                # uninstall previous versions
+                az extension remove --name containerapp
+
+                # install the latest
+                az extension add --name containerapp
+
+                az provider register --namespace Microsoft.App
+
+                RESOURCE_GROUP="rg_demos"
+                LOG_ANALYTICS_WORKSPACE="acrcontainersla"
+                CONTAINERAPPS_ENVIRONMENT="aca-environment"
+                LOCATION="eastus2"
+                AZP_URL="https://dev.azure.com/rcarneironet"
+                AZP_TOKEN=$(pattoken)
+                AZP_AGENT_NAME=devopsagentnew
+                AZP_POOL=containerapp-pool
+                AZP_POOL_ID=200
+                REGISTRY_USERNAME=acrdemoptc
+                REGISTRY_PASSWORD=$(acrpassword)
+                REGISTRY_LOGIN_SERVER=acrdemoptc.azurecr.io
+                IMAGE=acrdemoptc.azurecr.io/azplagent:latest
+                
+                CONTAINER_APP_NAME="azuredevops-agent"
+                MIN_REPLICAS="5"
+                MAX_REPLICAS="10"
+                CPU="1.75"
+                MEMORY="3.5Gi"
+                  az deployment group create \
+                    --resource-group $RESOURCE_GROUP \
+                    --template-file "containerapp/containerapp.json" \
+                    --parameters \
+                        environment_name="$CONTAINERAPPS_ENVIRONMENT" \
+                        location="$LOCATION" \
+                        azp_url="$AZP_URL" \
+                        azp_token="$AZP_TOKEN" \
+                        azp_pool="$AZP_POOL" \
+                        azp_poolId="$AZP_POOL_ID" \
+                        REGISTRY_LOGIN_SERVER=$REGISTRY_LOGIN_SERVER \
+                        REGISTRY_USERNAME=$REGISTRY_USERNAME \
+                        REGISTRY_PASSWORD=$REGISTRY_PASSWORD \
+                        IMAGE=$IMAGE \
+                        MIN_REPLICAS=$MIN_REPLICAS \
+                        MAX_REPLICAS=$MAX_REPLICAS \
+                        CPU=$CPU \
+                        MEMORY=$MEMORY \
+                        CONTAINER_APP_NAME=$CONTAINER_APP_NAME
