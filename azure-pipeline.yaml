@@ -10,21 +10,6 @@ variables:
   - group: azure-container-app
 
 stages :
-#  - stage: Build
-#    displayName: Build Azure DevOps Agent
-#    jobs:  
-#    - job: Build
-#      displayName: Build job
-#      steps:
-#      - task: Docker@2
-#        displayName: Build and Push Azure DevOps Agent to container registry
-#        inputs:
-#          command: buildAndPush
-#          repository: 'ACA-Scaling'
-#          dockerfile: '$(Build.SourcesDirectory)/azure-devops-agent-docker/Dockerfile'
-#          containerRegistry: 'acrdemoptc'
-#          tags: '$(Build.BuildId)'
-
   - stage: create_container_environment
     jobs:
       - job: "deploy_app"
@@ -47,7 +32,7 @@ stages :
 
                 az provider register --namespace Microsoft.App
 
-                RESOURCE_GROUP="rg_demos"
+                RESOURCE_GROUP="RESOURCE-GROUP-NAME"
                 LOCATION="eastus2"
                 LOG_ANALYTICS_WORKSPACE="acrcontainersla"
                 CONTAINERAPPS_ENVIRONMENT="aca-environment"
@@ -67,7 +52,7 @@ stages :
           - task: AzureCLI@2
             displayName: 'Deploy app to Container App'
             inputs:
-              azureSubscription: 'svc_clearsale'
+              azureSubscription: '<service_connection_az_devops>'
               scriptType: bash
               scriptLocation: inlineScript
               addSpnToEnvironment: true
@@ -82,19 +67,19 @@ stages :
 
                 az provider register --namespace Microsoft.App
 
-                RESOURCE_GROUP="rg_demos"
-                LOG_ANALYTICS_WORKSPACE="acrcontainersla"
-                CONTAINERAPPS_ENVIRONMENT="aca-environment"
+                RESOURCE_GROUP="RESOURCE-GROUP-NAME"
+                LOG_ANALYTICS_WORKSPACE="ANALYTICS-NAME"
+                CONTAINERAPPS_ENVIRONMENT="CONTANER-APPS-ENV-NAME"
                 LOCATION="eastus2"
-                AZP_URL="https://dev.azure.com/rcarneironet"
+                AZP_URL="https://dev.azure.com/<<YOUR_ORG>>"
                 AZP_TOKEN=$(pattoken)
                 AZP_AGENT_NAME=devopsagentnew
-                AZP_POOL=containerapp-pool
-                AZP_POOL_ID=200
-                REGISTRY_USERNAME=acrdemoptc
+                AZP_POOL=<<az_devops_pool_name>>
+                AZP_POOL_ID=<<pool_ID>>
+                REGISTRY_USERNAME=<<acr_username>>
                 REGISTRY_PASSWORD=$(acrpassword)
                 REGISTRY_LOGIN_SERVER=acrdemoptc.azurecr.io
-                IMAGE=acrdemoptc.azurecr.io/azplagent:latest
+                IMAGE=<<acr_name>>.azurecr.io/azplagent:latest
                 
                 CONTAINER_APP_NAME="azuredevops-agent"
                 MIN_REPLICAS="5"
